@@ -1,0 +1,261 @@
+<html>
+    <link rel="stylesheet" href="style.css">
+        
+        <div style = "margin: 0px auto; width: 640px;">
+            <canvas id="a" style="float:left" width="640" height="480"></canvas>
+            
+            <p class="clear"></p>
+            <p class="legend left">Reaction speed&nbsp;
+            <a onclick="decAntenna(); return false;" href="#">-</a>
+            </p>
+            <p id="n" class="legend left fixedwidth"></p>
+            <p class="legend left">
+            <a onclick="incAntenna(); return false;" href="#">+</a>
+            </p>
+            <p class="legend right">
+            <a onclick="incBlock(); return false;" href="#">+</a>
+            </p>
+            <p id="b" class="legend right fixedwidth"></p>
+            <p class="legend right">Diffusion ratio&nbsp;
+            <a onclick="decBlock(); return false;" href="#">-</a>
+            </p>
+        </div>
+        
+        <script>
+            
+            var width = 64;
+            var height = 64;
+            var blockSize = 4;
+            
+            var phase = 0.0;
+            var nAntenna = 2;
+            var view = 0;
+            
+            var wavelengthSeparation;
+            var phaseOffset;
+            
+            var a_canvas = null;
+            var a_context = null;
+            
+            
+            var L = 64;
+            var u = new Array(L*L);
+            var v = new Array(L*L);
+            var du = new Array(L*L);
+            var dv = new Array(L*L);
+            var beta = new Array(L*L);
+            var b = 1.400;
+            var a = 0.025;
+            var r = 10000;
+            var D1 = 0.25;
+            var D2 = 0.0625;
+            //var D1 = 1/4;
+            //var D2 = D1/4;
+            
+            var dratio = 4;
+            var speed = 3;
+            
+            
+            function start() {
+                
+                var requestAnimationFrame = window.requestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.msRequestAnimationFrame;
+                
+                a_canvas = document.getElementById("a");
+                a_context = a_canvas.getContext("2d");
+                a_context.fillRect(50, 25, 150, 100);
+                
+                a_canvas.onmousemove = mouseEffect;
+                
+                document.getElementById("n").innerHTML = speed;
+                document.getElementById("b").innerHTML = "1:4";
+                width = a_canvas.width / blockSize;
+                height = a_canvas.height / blockSize;
+                
+                setBroadside();
+                
+                //
+                c = 0;
+                for (var i = 0; i < L; i++) {
+                    for (var j = 0; j < L; j++) {
+                        u[c] = 12.0 + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                        v[c] = 12.0 + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                        beta[c] = 12.0;// + 3.5 * (Math.random() - 0.5);
+                        ++c;
+                    }
+                }
+                
+                //
+                requestAnimationFrame(frame);
+            }
+        
+        
+        function de(x, y) {
+            var k1 = 0.25;
+            var k2 = 0.02;
+            return 0.21 * (Math.cos(k1 * x + k2 * y)) * Math.random() + 0.21 * (Math.cos(k1 * x - k2 * y)) * Math.random();
+        }
+        
+        function mouseEffect(e) {
+            c = 0;
+            x = (e.pageX - a_canvas.offsetLeft)/blockSize;
+            y = (e.pageY - a_canvas.offsetTop)/blockSize;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    d2 = ((x-i)*(x-i) + (y-j)*(y-j));
+                    //d = 6.0 / (d2*0.24 + 1);
+                    kk = 1.0/64.0;
+                    d = 0.50 * Math.cos(kk * d2);
+                    beta[c] = 12.0 + d;// + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+        }
+        
+        var ss = 0.015;
+        
+        function react_f(a, b) {
+            //return r * (a - a_u + a_u * a_u * a_v);
+            return ss * (16.0 - a * b);
+        }
+        
+        function react_g(a, b, d) {
+            //return r * (b - a_u * a_u * a_v);
+            return ss * (a * b - b - d);
+        }
+
+        
+        function frame() {
+            
+            phase += -0.16;
+            
+            var separation = view ? 1 : 3;
+            var leftmost = 0.5 * width - 0.5 * separation * nAntenna;
+
+            // Calculate
+            var dt = 1.0;
+            var dx = 1.0;
+            var dx2 = dx*dx;
+            var C1 = D1 / dx2; // = D1 / dx^2
+            var C2 = D2 / dx2; // = d * D2 / dx^2
+            var d = 1;
+  
+            
+            c = 0;
+            e = 1;
+            w = L - 1;
+            n = L * L - (L - 1) - 1;
+            s = L;
+            for (var i = 0; i < L; i++) {
+                    for (var j = 0; j < L; j++) {
+                        
+                        
+                        du[c] = C1 * (-4*u[c] + u[n] + u[e] + u[s] + u[w]) + react_f(u[c], v[c]);
+                        dv[c] = C2 * (-4*v[c] + v[n] + v[e] + v[s] + v[w]) + react_g(u[c], v[c], beta[c]);
+                        ++c;
+                        n = (n + 1) % (L*L);
+                        e = (e + 1) % (L*L);
+                        s = (s + 1) % (L*L);
+                        w = (w + 1) % (L*L);
+                    }
+            }
+
+
+            // Apply
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    
+                    u[c] += du[c] * dt;
+                    v[c] += dv[c] * dt;
+                    
+                    if (u[c] > 24) {u[c] = 24;}
+                    if (u[c] < 0) {u[c] = 0;}
+                    if (v[c] > 24) {v[c] = 24;}
+                    if (v[c] < 0) {v[c] = 0;}
+                    
+                    var A = v[c];
+                    var scaleA = 1/15.0;
+                    
+                    var rstyle = A > 15 ?  255 :   200; //208;
+                    var gstyle = A > 15 ? 251 :  46; //243;
+                    var bstyle = A > 15 ? 64 : 131;//  3;
+                    
+                    var rstyle2 = A > 15 ?  200 :   20; //208;
+                    var gstyle2 = A > 15 ? 46 :  5; //243;
+                    var bstyle2 = A > 15 ? 131 : 13;//  3;
+                    
+                    var ratio = A * scaleA;
+                    if (ratio > 1) ratio -= 1;
+                    
+                    var rfill = ratio * rstyle + (1.0 - ratio) * rstyle2;
+                    var gfill = ratio * gstyle + (1.0 - ratio) * gstyle2;
+                    var bfill = ratio * bstyle + (1.0 - ratio) * bstyle2;
+                    
+                    a_context.fillStyle = "rgba(" + parseInt(rfill) + "," + parseInt(gfill) + "," + parseInt(bfill) + ", 255)";
+                    a_context.fillRect(i * blockSize + 1,
+                                       j * blockSize + 1,
+                                       blockSize,
+                                       blockSize);
+                                       
+                    ++c;
+                } // j
+            } // i
+            
+            // Overlay
+            for (var k = 0; k < nAntenna; k++) {
+                var x = leftmost + separation * k;
+                var y = 0.5 * height;
+                a_context.fillStyle = "#fff";
+                radius = 4.0;
+            }
+            
+            requestAnimationFrame(frame);
+        }
+        
+        function setBroadside() {
+        }
+        
+        function setEndfire() {
+        }
+        
+        function setNearView() {
+            view = 0;
+        }
+        
+        function setFarView() {
+            view = 1;
+        }
+        
+        function incAntenna() {
+            speed = (speed == 8) ? 8 : speed+1;
+            document.getElementById("n").innerHTML = speed;
+            ss = 0.005 * speed;
+        }
+        
+        function decAntenna() {
+            speed = (speed == 1) ? 1 : speed-1;
+            document.getElementById("n").innerHTML = speed;
+            ss = 0.005 * speed;
+        }
+        
+        function decBlock() {
+            
+            dratio = (dratio == 1) ? 1 : dratio-1;
+            document.getElementById("b").innerHTML = "1:" + dratio;
+            D2 = D1 / dratio;
+        }
+        
+        function incBlock() {
+            
+            dratio = (dratio == 8) ? 8 : dratio+1;
+            document.getElementById("b").innerHTML = "1:" + dratio;
+            D2 = D1 / dratio;
+        }
+        
+        window.onload=start;
+      
+    </script>
+</html>
