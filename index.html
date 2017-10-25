@@ -3,21 +3,41 @@
         
         <div style = "margin: 0px auto; width: 640px;">
             <canvas id="a" style="float:left" width="640" height="480"></canvas>
-            
-            <p class="clear"></p>
-            <p class="legend left">Reaction speed&nbsp;
+            <p class="legend right">
+            <a onclick="setBroadside(); return false;" href="#">Preset A</a>
+            </p>
+             <p class="legend left">Reaction speed&nbsp;
             <a onclick="decAntenna(); return false;" href="#">-</a>
             </p>
             <p id="n" class="legend left fixedwidth"></p>
             <p class="legend left">
             <a onclick="incAntenna(); return false;" href="#">+</a>
             </p>
+            <p class="clear"></p>
             <p class="legend right">
+            <a onclick="setNearView(); return false;" href="#">Preset B</a>
+            </p>
+            <p class="legend left">Diffusion ratio&nbsp;
+            <a onclick="decBlock(); return false;" href="#">-</a>
+            </p>
+            <p id="d" class="legend left fixedwidth"></p>
+            <p class="legend left">
             <a onclick="incBlock(); return false;" href="#">+</a>
             </p>
-            <p id="b" class="legend right fixedwidth"></p>
-            <p class="legend right">Diffusion ratio&nbsp;
-            <a onclick="decBlock(); return false;" href="#">-</a>
+            <p class="clear"></p>
+            <p class="legend right">
+            <a onclick="setEndfire(); return false;" href="#">Preset C</a>
+            </p>
+            <p class="legend left">Distortion&nbsp;
+            <a onclick="decBeta(); return false;" href="#">-</a>
+            </p>
+            <p id="b" class="legend left fixedwidth"></p>
+            <p class="legend left">
+            <a onclick="incBeta(); return false;" href="#">+</a>
+            </p>
+            <p class="clear"></p>
+            <p class="legend right">
+            <a onclick="setFarView(); return false;" href="#">Preset D</a>
             </p>
         </div>
         
@@ -27,16 +47,8 @@
             var height = 64;
             var blockSize = 4;
             
-            var phase = 0.0;
-            var nAntenna = 2;
-            var view = 0;
-            
-            var wavelengthSeparation;
-            var phaseOffset;
-            
             var a_canvas = null;
             var a_context = null;
-            
             
             var L = 64;
             var u = new Array(L*L);
@@ -54,7 +66,11 @@
             
             var dratio = 4;
             var speed = 3;
-            
+            var base_speed = 0.03125;
+            var base_beta = 12.0;
+            var u_max = 8;
+            var v_max = 8;
+
             
             function start() {
                 
@@ -70,7 +86,8 @@
                 a_canvas.onmousemove = mouseEffect;
                 
                 document.getElementById("n").innerHTML = speed;
-                document.getElementById("b").innerHTML = "1:4";
+                document.getElementById("d").innerHTML = "1:" + dratio;
+                document.getElementById("b").innerHTML = base_beta;
                 width = a_canvas.width / blockSize;
                 height = a_canvas.height / blockSize;
                 
@@ -80,9 +97,9 @@
                 c = 0;
                 for (var i = 0; i < L; i++) {
                     for (var j = 0; j < L; j++) {
-                        u[c] = 12.0 + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
-                        v[c] = 12.0 + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
-                        beta[c] = 12.0;// + 3.5 * (Math.random() - 0.5);
+                        u[c] = 4.0;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                        v[c] = 4.0;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                        beta[c] = 12.0 + 1.05 * (Math.random() - 0.5);
                         ++c;
                     }
                 }
@@ -99,6 +116,7 @@
         }
         
         function mouseEffect(e) {
+            return;
             c = 0;
             x = (e.pageX - a_canvas.offsetLeft)/blockSize;
             y = (e.pageY - a_canvas.offsetTop)/blockSize;
@@ -108,32 +126,26 @@
                     //d = 6.0 / (d2*0.24 + 1);
                     kk = 1.0/64.0;
                     d = 0.50 * Math.cos(kk * d2);
-                    beta[c] = 12.0 + d;// + 3.5 * (Math.random() - 0.5);
+                    beta[c] = base_beta + d;// + 3.5 * (Math.random() - 0.5);
                     ++c;
                 }
             }
         }
         
-        var ss = 0.015;
         
         function react_f(a, b) {
             //return r * (a - a_u + a_u * a_u * a_v);
-            return ss * (16.0 - a * b);
+            return base_speed * (16.0 - a * b);
         }
         
         function react_g(a, b, d) {
             //return r * (b - a_u * a_u * a_v);
-            return ss * (a * b - b - d);
+            return base_speed * (a * b - b - d);
         }
 
         
         function frame() {
             
-            phase += -0.16;
-            
-            var separation = view ? 1 : 3;
-            var leftmost = 0.5 * width - 0.5 * separation * nAntenna;
-
             // Calculate
             var dt = 1.0;
             var dx = 1.0;
@@ -151,14 +163,20 @@
             for (var i = 0; i < L; i++) {
                     for (var j = 0; j < L; j++) {
                         
+                        n = (i == 0) ? (c - L + L*L) : (c - L);
+                        s = (i == L-1) ? (c - L*L + L) : (c + L);
+                        e = (j == L-1) ? (c-L + 1) : (c + 1);
+                        w = (j == 0) ? (c+L - 1) : (c-1);
                         
                         du[c] = C1 * (-4*u[c] + u[n] + u[e] + u[s] + u[w]) + react_f(u[c], v[c]);
                         dv[c] = C2 * (-4*v[c] + v[n] + v[e] + v[s] + v[w]) + react_g(u[c], v[c], beta[c]);
+                        //du[c] = C1 * (-2*u[c] + u[e] + u[w]) +  react_f(u[c], v[c]);
+                        //dv[c] = C1 * (-2*v[c] + v[e] + v[w]) +  react_g(u[c], v[c], beta[c]);
                         ++c;
-                        n = (n + 1) % (L*L);
-                        e = (e + 1) % (L*L);
-                        s = (s + 1) % (L*L);
-                        w = (w + 1) % (L*L);
+                        //n = (n + 1) % (L*L);
+                        //e = (e + 1) % (L*L);
+                        //s = (s + 1) % (L*L);
+                        //w = (w + 1) % (L*L);
                     }
             }
 
@@ -171,21 +189,21 @@
                     u[c] += du[c] * dt;
                     v[c] += dv[c] * dt;
                     
-                    if (u[c] > 24) {u[c] = 24;}
+                    if (u[c] > u_max) {u[c] = u_max;}
                     if (u[c] < 0) {u[c] = 0;}
-                    if (v[c] > 24) {v[c] = 24;}
+                    if (v[c] > v_max) {v[c] = v_max;}
                     if (v[c] < 0) {v[c] = 0;}
                     
                     var A = v[c];
-                    var scaleA = 1/15.0;
+                    var scaleA = 1/6.0;
                     
-                    var rstyle = A > 15 ?  255 :   200; //208;
-                    var gstyle = A > 15 ? 251 :  46; //243;
-                    var bstyle = A > 15 ? 64 : 131;//  3;
+                    var rstyle = A > 6 ?  255 :   200; //208;
+                    var gstyle = A > 6 ? 251 :  46; //243;
+                    var bstyle = A > 6 ? 64 : 131;//  3;
                     
-                    var rstyle2 = A > 15 ?  200 :   20; //208;
-                    var gstyle2 = A > 15 ? 46 :  5; //243;
-                    var bstyle2 = A > 15 ? 131 : 13;//  3;
+                    var rstyle2 = A > 6 ?  200 :   20; //208;
+                    var gstyle2 = A > 6 ? 46 :  5; //243;
+                    var bstyle2 = A > 6 ? 131 : 13;//  3;
                     
                     var ratio = A * scaleA;
                     if (ratio > 1) ratio -= 1;
@@ -204,55 +222,157 @@
                 } // j
             } // i
             
-            // Overlay
-            for (var k = 0; k < nAntenna; k++) {
-                var x = leftmost + separation * k;
-                var y = 0.5 * height;
-                a_context.fillStyle = "#fff";
-                radius = 4.0;
-            }
             
             requestAnimationFrame(frame);
         }
         
         function setBroadside() {
+            base_beta = 11.5;
+            speed = 4;
+            base_speed = 0.015 * speed;
+            dratio = 4;
+            D2 = D1 / dratio;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    u[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                    v[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                    beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+            
+            document.getElementById("n").innerHTML = speed;
+            document.getElementById("d").innerHTML = "1:" + dratio;
+            document.getElementById("b").innerHTML = base_beta;
         }
         
         function setEndfire() {
+            base_beta = 12.5;
+            speed = 4;
+            base_speed = 0.015 * speed;
+            dratio = 4;
+            D2 = D1 / dratio;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    u[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                    v[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                    beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+            
+            document.getElementById("n").innerHTML = speed;
+            document.getElementById("d").innerHTML = "1:" + dratio;
+            document.getElementById("b").innerHTML = base_beta;
         }
         
         function setNearView() {
-            view = 0;
+            base_beta = 12.0;
+            speed = 4;
+            base_speed = 0.015 * speed;
+            dratio = 5;
+            D2 = D1 / dratio;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    u[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                    v[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                    beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+            
+            document.getElementById("n").innerHTML = speed;
+            document.getElementById("d").innerHTML = "1:" + dratio;
+            document.getElementById("b").innerHTML = base_beta;
         }
         
         function setFarView() {
-            view = 1;
+            base_beta = 12;
+            speed = 8;
+            base_speed = 0.015 * speed;
+            dratio = 4;
+            D2 = D1 / dratio;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    u[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                    v[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                    beta[c] = base_beta + 3.0 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+            
+            document.getElementById("n").innerHTML = speed;
+            document.getElementById("d").innerHTML = "1:" + dratio;
+            document.getElementById("b").innerHTML = base_beta;
         }
+        
         
         function incAntenna() {
             speed = (speed == 8) ? 8 : speed+1;
             document.getElementById("n").innerHTML = speed;
-            ss = 0.005 * speed;
+            base_speed = 0.005 * speed;
         }
         
         function decAntenna() {
             speed = (speed == 1) ? 1 : speed-1;
             document.getElementById("n").innerHTML = speed;
-            ss = 0.005 * speed;
+            base_speed = 0.005 * speed;
         }
         
         function decBlock() {
             
             dratio = (dratio == 1) ? 1 : dratio-1;
-            document.getElementById("b").innerHTML = "1:" + dratio;
+            document.getElementById("d").innerHTML = "1:" + dratio;
             D2 = D1 / dratio;
         }
         
         function incBlock() {
             
             dratio = (dratio == 8) ? 8 : dratio+1;
-            document.getElementById("b").innerHTML = "1:" + dratio;
+            document.getElementById("d").innerHTML = "1:" + dratio;
             D2 = D1 / dratio;
+        }
+        
+        function decBeta() {
+            
+            base_beta = (base_beta <= 1) ? 1 : base_beta-0.5;
+            document.getElementById("b").innerHTML = base_beta;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
+        }
+        
+        function incBeta() {
+            
+            base_beta = (base_beta >= 20) ? 20 : base_beta+0.5;
+            document.getElementById("b").innerHTML = base_beta;
+            
+            //
+            c = 0;
+            for (var i = 0; i < L; i++) {
+                for (var j = 0; j < L; j++) {
+                    beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
+                    ++c;
+                }
+            }
         }
         
         window.onload=start;
