@@ -36,8 +36,19 @@
             <a onclick="incBeta(); return false;" href="#">+</a>
             </p>
             <p class="clear"></p>
+            <p class="legend left">Anisotropy&nbsp;
+            <a onclick="decAni(); return false;" href="#">-</a>
+            </p>
+            <p id="an" class="legend left fixedwidth"></p>
+            <p class="legend left">
+            <a onclick="incAni(); return false;" href="#">+</a>
+            </p>
             <p class="legend right">
             <a onclick="setFarView(); return false;" href="#">Preset D</a>
+            </p>
+            <p class="clear"></p>
+            <p class="legend left">
+            <input type="checkbox" onchange="mouseEnable = !mouseEnable;">Mouse Interaction<br>
             </p>
         </div>
         
@@ -45,12 +56,12 @@
             
             var width = 64;
             var height = 64;
-            var blockSize = 4;
+            var blockSize = 2;
             
             var a_canvas = null;
             var a_context = null;
             
-            var L = 64;
+            var L = 128;
             var u = new Array(L*L);
             var v = new Array(L*L);
             var du = new Array(L*L);
@@ -70,6 +81,9 @@
             var base_beta = 12.0;
             var u_max = 8;
             var v_max = 8;
+            var ani = 1;
+            
+            var mouseEnable = false;
 
             
             function start() {
@@ -88,6 +102,7 @@
                 document.getElementById("n").innerHTML = speed;
                 document.getElementById("d").innerHTML = "1:" + dratio;
                 document.getElementById("b").innerHTML = base_beta;
+                document.getElementById("an").innerHTML = ani;
                 width = a_canvas.width / blockSize;
                 height = a_canvas.height / blockSize;
                 
@@ -116,18 +131,19 @@
         }
         
         function mouseEffect(e) {
-            return;
-            c = 0;
-            x = (e.pageX - a_canvas.offsetLeft)/blockSize;
-            y = (e.pageY - a_canvas.offsetTop)/blockSize;
-            for (var i = 0; i < L; i++) {
-                for (var j = 0; j < L; j++) {
-                    d2 = ((x-i)*(x-i) + (y-j)*(y-j));
-                    //d = 6.0 / (d2*0.24 + 1);
-                    kk = 1.0/64.0;
-                    d = 0.50 * Math.cos(kk * d2);
-                    beta[c] = base_beta + d;// + 3.5 * (Math.random() - 0.5);
-                    ++c;
+            if (mouseEnable) {
+                c = 0;
+                x = (e.pageX - a_canvas.offsetLeft)/blockSize;
+                y = (e.pageY - a_canvas.offsetTop)/blockSize;
+                for (var i = 0; i < L; i++) {
+                    for (var j = 0; j < L; j++) {
+                        d2 = ((x-i)*(x-i) + (y-j)*(y-j));
+                        //d = 6.0 / (d2*0.24 + 1);
+                        kk = 1.0/64.0;
+                        d = 3.50 * Math.cos(kk * d2);
+                        beta[c] = base_beta + d;// + 3.5 * (Math.random() - 0.5);
+                        ++c;
+                    }
                 }
             }
         }
@@ -154,7 +170,6 @@
             var C2 = D2 / dx2; // = d * D2 / dx^2
             var d = 1;
   
-            
             c = 0;
             e = 1;
             w = L - 1;
@@ -168,8 +183,10 @@
                         e = (j == L-1) ? (c-L + 1) : (c + 1);
                         w = (j == 0) ? (c+L - 1) : (c-1);
                         
-                        du[c] = C1 * (-4*u[c] + u[n] + u[e] + u[s] + u[w]) + react_f(u[c], v[c]);
-                        dv[c] = C2 * (-4*v[c] + v[n] + v[e] + v[s] + v[w]) + react_g(u[c], v[c], beta[c]);
+                        du[c] = ani * C1 * (-2*u[c] + u[n] + u[s]) + C1 * (-2*u[c] + u[e] + u[w]) + react_f(u[c], v[c]);
+                        dv[c] = ani * C2 * (-2*v[c] + v[n] + v[s]) + C2 * (-2*v[c] + v[e] + v[w]) + react_g(u[c], v[c], beta[c]);
+                        //du[c] = C1 * (-4*u[c] + u[n] + u[e] + u[s] + u[w]) + react_f(u[c], v[c]);
+                        //dv[c] = C2 * (-4*v[c] + v[n] + v[e] + v[s] + v[w]) + react_g(u[c], v[c], beta[c]);
                         //du[c] = C1 * (-2*u[c] + u[e] + u[w]) +  react_f(u[c], v[c]);
                         //dv[c] = C1 * (-2*v[c] + v[e] + v[w]) +  react_g(u[c], v[c], beta[c]);
                         ++c;
@@ -227,18 +244,18 @@
         }
         
         function setBroadside() {
-            base_beta = 11.5;
+            base_beta = 12.0;
             speed = 4;
             base_speed = 0.015 * speed;
-            dratio = 4;
+            dratio = 8;
             D2 = D1 / dratio;
             
             //
             c = 0;
             for (var i = 0; i < L; i++) {
                 for (var j = 0; j < L; j++) {
-                    u[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
-                    v[c] = base_beta;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
+                    u[c] = 4;// + 0.1 * de(i, j) * de(j, i);//b + de(i, j);
+                    v[c] = 4;// + 0.1 * de(i, j) * de(j, i);//1.0/b + 0.1 * de(i, j);
                     beta[c] = base_beta + 3.5 * (Math.random() - 0.5);
                     ++c;
                 }
@@ -373,6 +390,16 @@
                     ++c;
                 }
             }
+        }
+        
+        function decAni() {
+            ani = (ani <= 0.1) ? 0.1 : ani-0.1;
+            document.getElementById("an").innerHTML = ani;
+        }
+        
+        function incAni() {
+            ani = (ani >= 1.1) ? 1.1 : ani+0.1;
+            document.getElementById("an").innerHTML = ani;
         }
         
         window.onload=start;
